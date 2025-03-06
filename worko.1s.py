@@ -8,8 +8,11 @@ import json
 import subprocess
 
 # Configuration
-CONFIG_FILE = os.path.expanduser('~/.work_tracker_config.json')
-CSV_FILE = os.path.expanduser('~/work_sessions.csv')
+WORKO_DATA_DIR = os.path.expanduser('~/.worko_data')
+CONFIG_JSON = os.path.join(WORKO_DATA_DIR, 'config.json')
+LOG_CSV = os.path.join(WORKO_DATA_DIR, 'tmp_work_sessions.csv')
+SUMMARY_CSV = os.path.join(WORKO_DATA_DIR, 'project_summary.csv')
+SCOREBOARD_ROLLING_DAYS = 7
 
 class WorkTracker:
     def __init__(self):
@@ -17,13 +20,13 @@ class WorkTracker:
     
     def load_config(self):
         try:
-            with open(CONFIG_FILE, 'r') as f:
+            with open(CONFIG_JSON, 'r') as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return {'active_session': None}
     
     def save_config(self):
-        with open(CONFIG_FILE, 'w') as f:
+        with open(CONFIG_JSON, 'w') as f:
             json.dump(self.config, f)
     
     def prompt_user(self, message, answer=""):
@@ -38,19 +41,19 @@ class WorkTracker:
             return None
     
     def start_session(self):
-        # Prompt for intention using AppleScript
-        intention = self.prompt_user("Tag for work to be done:")
+        # Prompt for project using AppleScript
+        project = self.prompt_user("Tag for work to be done:")
         
-        if not intention:
-            intention = "open-session"
+        if not project:
+            project = "open-session"
         
         # Create session record
         session = {
             'start_time': datetime.now().isoformat(),
-            'intention': intention,
+            'project': project,
             'end_time': None,
             'duration': None,
-            'accomplishments': None
+            'results': None
         }
         
         # Save session to config
@@ -64,11 +67,11 @@ class WorkTracker:
             self.prompt_user("No active work session to end.")
             return
         
-        # Prompt for accomplishments
-        accomplishments = self.prompt_user("What did you accomplish in this work session?", "\n\n")
+        # Prompt for results
+        results = self.prompt_user("What did you accomplish in this work session?", "\n\n")
         
-        if not accomplishments:
-            accomplishments = "Untracked session"
+        if not results:
+            results = "Untracked session"
         
         # Retrieve and complete the session
         session = self.config['active_session']
@@ -79,7 +82,7 @@ class WorkTracker:
         # Update session details
         session['end_time'] = end_time.isoformat()
         session['duration'] = str(duration)
-        session['accomplishments'] = accomplishments
+        session['results'] = results
         
         # Save to CSV
         self.save_to_csv(session)
@@ -102,7 +105,7 @@ class WorkTracker:
         # Ensure CSV file exists with headers
         file_exists = os.path.isfile(CSV_FILE)
         with open(CSV_FILE, 'a', newline='') as csvfile:
-            fieldnames = ['start_time', 'end_time', 'duration', 'intention', 'accomplishments']
+            fieldnames = ['start_time', 'end_time', 'duration', 'project', 'results']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             
             if not file_exists:
@@ -112,8 +115,8 @@ class WorkTracker:
                 'start_time': session['start_time'],
                 'end_time': session['end_time'],
                 'duration': session['duration'],
-                'intention': session['intention'],
-                'accomplishments': session['accomplishments']
+                'project': session['project'],
+                'results': session['results']
             })
     
     def display_menu(self):
@@ -125,10 +128,10 @@ class WorkTracker:
             duration = datetime.now() - start_time
             
             # Menu bar display when session is active
-            print(f"㏒: **{active_session['intention']}** |  md=True")
+            print(f"㏒: **{active_session['project']}** |  md=True")
             print("---")
             print("End Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=end terminal=false".format(sys.argv[0]))
-            print(f"Focus: {active_session['intention']}")
+            print(f"Focus: {active_session['project']}")
             print(f"Duration: {duration}")
         else:
             # No active session
