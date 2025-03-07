@@ -25,7 +25,7 @@ import sys
 # Configuration
 WORKO_DATA_DIR = os.path.expanduser('~/.worko_data')
 SESSION_JSON = os.path.join(WORKO_DATA_DIR, 'current_session.json')
-LOG_CSV = os.path.join(WORKO_DATA_DIR, 'work_sessions.csv')
+LOG_CSV = os.path.join(WORKO_DATA_DIR, 'work_log.csv')
 SUMMARY_CSV = os.path.join(WORKO_DATA_DIR, 'project_summary.csv')
 SCOREBOARD_ROLLING_DAYS = 7
 TOP_PROJECTS = 3
@@ -65,7 +65,7 @@ class WorkoLog:
             pass
 
     def update_summary(self):
-
+        print("starting update--------------------------------")
         # filter work log for the target rolling days
         project_durations = defaultdict(int)
         dt_now =  datetime.now()
@@ -78,6 +78,7 @@ class WorkoLog:
                 if dt_now - dt_end < dt_limit:
                     project_durations[row['project']] += int(row['duration'])
 
+        print(project_durations)
         tmp_summary = [{'project': pk, 'duration': project_durations[pk]} for pk in project_durations]
         tmp_summary.sort(key=lambda x: x['duration'], reverse=True)
 
@@ -94,9 +95,6 @@ class WorkoLog:
         file_exists = os.path.isfile(LOG_CSV)
         with open(LOG_CSV, 'a') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=WorkoLog.LOG_FIELDS)
-            
-            if not file_exists:
-                writer.writeheader()
             
             writer.writerow({
                 'start_time': session['start_time'],
@@ -193,9 +191,9 @@ class WorkoApp:
         except subprocess.CalledProcessError:
             return None
     
-    def start_session(self):
+    def start_session(self, project=""):
         # Prompt for project using AppleScript
-        project = self.prompt_user("Project tag:")
+        project = self.prompt_user("Project tag:", project)
         
         if not project:
             project = "freeform"
@@ -221,7 +219,7 @@ class WorkoApp:
         
         # Retrieve and complete the session
         session_data = self.session.end(results)
-        self.log.write_entry(session_data)
+        self.log.save(session_data)
 
    
     def add_note(self):
@@ -266,20 +264,25 @@ class WorkoApp:
             print(f"Ⓦ **{active_session['project']}** |  md=True")
             print(f"---")
             print(f"Add Note | refresh=True bash='{script}' param1=note terminal=false")
-            print(f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{script}' param1=end terminal=false")
+            print(f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{script}' param1=toggle terminal=false")
             print(f"Project: {active_session['project']}")
             print(f"Duration: {duration}")
         else:
             # No active session
             print(f"ⓦ | md=True")
             print(f"---")
-            print(f"Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=start terminal=false")
-            print(f"---")
-            print("Top Projects")
+            print(f"Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false")
+
             top_projects = self.log.get_top_projects()
+            if len(top_projects) > 0:
+                print(f"---")
+                print("Top Projects")
             for tp in top_projects:
-                print(f"{tp['project']}: {round(tp['duration'] / 3600.0, 3)} hrs")
+                display_duration = WorkoApp.display_duration(tp['duration'])
+                print(f"Start {tp['project']} ({WorkoApp.display_duration(tp['duration'])}) | refresh=True bash='{sys.argv[0]}' param1='{tp['project']}' terminal=false")
+
         print(f"---")
+        print(f"Open data directory | refresh=True bash='{sys.argv[0]}' param1='opendata' terminal=false")
         print(f"ⓦ Worko 2025")
 
 def main():
@@ -287,8 +290,12 @@ def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == 'note':
             tracker.add_note()
-        else:
+        elif sys.argv[1] == 'toggle':
             tracker.toggle_session()
+        elif sys.argv[1] == 'opendata':
+            subprocess.run(["/usr/bin/open",  WORKO_DATA_DIR])
+        else:
+            tracker.start_session(sys.argv[1])
     else:
         tracker.display_menu()
 
