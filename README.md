@@ -6,7 +6,7 @@ work time tracker
 - [x] consolidate save files
 - [x] consolidate app config
 - [x] scoreboard that rolls up work time
-- [ ] add a note to a session
+- [x] add a note to a session
 - [ ] selecting project starts work on that project
 - [ ] invoice generator
 - [ ] cli interface

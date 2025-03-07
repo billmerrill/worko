@@ -2,6 +2,7 @@
 
 import csv
 from collections import defaultdict
+from copy import copy
 from datetime import datetime, timedelta
 import json
 import os
@@ -16,7 +17,7 @@ SUMMARY_CSV = os.path.join(WORKO_DATA_DIR, 'project_summary.csv')
 SCOREBOARD_ROLLING_DAYS = 7
 TOP_PROJECTS = 3
 
-class WorkoData:
+class WorkoLog:
     LOG_FIELDS = ['start_time', 'end_time', 'duration', 'project', 'results']
     SUMMARY_FIELDS = ['project', 'duration']
 
@@ -34,15 +35,15 @@ class WorkoData:
         elif not os.path.isdir(WORKO_DATA_DIR):
             raise ValueError(f"Path exists but is not a directory.")
 
-    def save_session(self, session):
-        self.write_log(session)
+    def save(self, session):
+        self.write_entry(session)
         self.update_summary()
 
     def load_summary(self):
         self.summary = []
         try:
             with open(SUMMARY_CSV, 'r') as fh:
-                reader = csv.DictReader(fh, fieldnames=WorkoData.SUMMARY_FIELDS)
+                reader = csv.DictReader(fh, fieldnames=WorkoLog.SUMMARY_FIELDS)
                 for row in reader:
                     row['duration'] = int(row['duration'])
                     self.summary.append(row)
@@ -57,7 +58,7 @@ class WorkoData:
         dt_now =  datetime.now()
         dt_limit = timedelta(days=SCOREBOARD_ROLLING_DAYS)
         with open(LOG_CSV, 'r') as fh:
-            reader = csv.DictReader(fh, fieldnames=WorkoData.LOG_FIELDS)
+            reader = csv.DictReader(fh, fieldnames=WorkoLog.LOG_FIELDS)
             for row in reader:
                 print("OHAHI", row)
                 dt_end = datetime.fromisoformat(row['end_time'])
@@ -69,17 +70,17 @@ class WorkoData:
 
         # write a new summary 
         with open(SUMMARY_CSV, 'w') as fh:
-            writer = csv.DictWriter(fh, fieldnames=WorkoData.SUMMARY_FIELDS)
+            writer = csv.DictWriter(fh, fieldnames=WorkoLog.SUMMARY_FIELDS)
             for proj in tmp_summary:
                 writer.writerow(proj)
         
         self.summary = tmp_summary
 
     
-    def write_log(self, session):
+    def write_entry(self, session):
         file_exists = os.path.isfile(LOG_CSV)
         with open(LOG_CSV, 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=WorkoData.LOG_FIELDS)
+            writer = csv.DictWriter(csvfile, fieldnames=WorkoLog.LOG_FIELDS)
             
             if not file_exists:
                 writer.writeheader()
@@ -91,23 +92,83 @@ class WorkoData:
                 'project': session['project'],
                 'results': session['results']
             })
- 
-class WorkoApp:
+
+class WorkoSession:
+
     def __init__(self):
-        self.session = self.load_session()
-        self.data = WorkoData()
-    
-    def load_session(self):
+        self.load()
+
+    def load(self):
         try:
             with open(SESSION_JSON, 'r') as f:
-                return json.load(f)
+                self.data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            return {'active_session': None}
-    
-    def save_session(self):
+            self.data = {'active_session': None}
+ 
+    def save(self):
         with open(SESSION_JSON, 'w') as f:
-            json.dump(self.session, f)
-    
+            json.dump(self.data, f)
+
+    def get(self):
+        return self.data['active_session']
+
+    def start(self, project):
+        self.data = { 'active_session': {
+            'start_time': datetime.now().isoformat(),
+            'project': project,
+            'end_time': None,
+            'duration': None,
+            'results': None
+        } }
+
+        self.save()
+
+    def end(self, results):
+        s = self.data['active_session']
+        start_time = datetime.fromisoformat(s['start_time'])
+        end_time = datetime.now()
+        duration = end_time - start_time
+        
+        # Update session details
+        s['end_time'] = end_time.isoformat()
+        s['duration'] = str(round(duration.total_seconds()))
+        s['results'] = results
+
+        self.save() 
+
+        final_session = copy(self.data['active_session']) 
+        # Clear active session
+        self.data['active_session'] = None
+        self.save()
+        return final_session
+ 
+
+    def is_active(self):
+        return self.data['active_session'] is not None
+
+    def get_results(self):
+        if self.is_active():
+            return self.data['active_session']['results']
+
+    def set_results(self, note):
+        if self.is_active():
+            self.data['active_session']['results'] = note
+            self.save()
+
+    def add_results(self, new_result):
+        if self.is_active():
+            self.data['active_session']['results'] = f"{self.data['active_session']['results']}\n{new_result}" \
+                if self.data['active_session']['results'] \
+                else new_result
+            self.save()
+
+ 
+
+class WorkoApp:
+    def __init__(self):
+        self.session = WorkoSession()
+        self.log = WorkoLog()
+   
     def prompt_user(self, message, answer=""):
         """Use AppleScript to show a dialog and return user input"""
         script = f'display dialog "{message}" default answer "{answer}"'
@@ -127,59 +188,50 @@ class WorkoApp:
             project = "freeform"
         
         # Create session record
-        session = {
-            'start_time': datetime.now().isoformat(),
-            'project': project,
-            'end_time': None,
-            'duration': None,
-            'results': None
-        }
-        
-        # Save session to config
-        self.session['active_session'] = session
-        self.save_session()
-        
+        self.session.start(project)
+       
     
     def end_session(self):
         # Check if there's an active session
-        if not self.session['active_session']:
+        if not self.session.is_active():
             self.prompt_user("No active work session to end.")
             return
         
         # Prompt for results
-        results = self.prompt_user("What did you accomplish in this work session?", "\n\n")
+        current_results = self.session.get_results()
+        results = self.prompt_user(
+                "What did you accomplish in this work session?", 
+                f"{current_results}\n" if current_results else  "\n\n")
         
         if not results:
             results = "Untracked session"
         
         # Retrieve and complete the session
-        session = self.session['active_session']
-        start_time = datetime.fromisoformat(session['start_time'])
-        end_time = datetime.now()
-        duration = end_time - start_time
+        session_data = self.session.end(results)
+        self.log.write_entry(session_data)
+
+   
+    def add_note(self):
+        if not self.session.is_active():
+            self.prompt_user("No active work session to note.")
+            return
         
-        # Update session details
-        session['end_time'] = end_time.isoformat()
-        session['duration'] = str(round(duration.total_seconds()))
-        session['results'] = results
-        
-        self.data.save_session(session)
-        
-        # Clear active session
-        self.session['active_session'] = None
-        self.save_session()
+        # Prompt for results
+        new_note = self.prompt_user("Add a session note.", "")
+        self.session.add_results(new_note)
+
     
     def toggle_session(self):
-        if self.session['active_session']:
+        if self.session.is_active():
             self.end_session()
         else:
             self.start_session()
     
    
     def display_menu(self):
-        active_session = self.session.get('active_session')
+        active_session = self.session.get()
         
-        if active_session:
+        if self.session.is_active():
             # Working session is active
             start_time = datetime.fromisoformat(active_session['start_time'])
             duration = datetime.now() - start_time
@@ -188,6 +240,8 @@ class WorkoApp:
             # Menu bar display when session is active
             print(f"㏒: **{active_session['project']}** |  md=True")
             print("---")
+            print(sys.argv)
+            print("Add Note | refresh=True bash='{}' param1=note terminal=false".format(sys.argv[0]))
             print("End Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=end terminal=false".format(sys.argv[0]))
             print(f"Focus: {active_session['project']}")
             print(f"Duration: {duration} hrs")
@@ -195,16 +249,21 @@ class WorkoApp:
             # No active session
             print("㏒ | md=True")
             print("---")
+            print(sys.argv)
             print("Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=start terminal=false".format(sys.argv[0]))
-            top_projects = self.data.get_top_projects()
+            top_projects = self.log.get_top_projects()
             for tp in top_projects:
                 print(f"{tp['project']}: {round(tp['duration'] / 3600.0, 3)} hrs")
 
 def main():
     tracker = WorkoApp()
     if len(sys.argv) > 1:
-        tracker.toggle_session()
-    tracker.display_menu()
+        if sys.argv[1] == 'note':
+            tracker.add_note()
+        else:
+            tracker.toggle_session()
+    else:
+        tracker.display_menu()
 
 if __name__ == '__main__':
     main()
