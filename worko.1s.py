@@ -44,7 +44,9 @@ class WorkoData:
             with open(SUMMARY_CSV, 'r') as fh:
                 reader = csv.DictReader(fh, fieldnames=WorkoData.SUMMARY_FIELDS)
                 for row in reader:
+                    row['duration'] = int(row['duration'])
                     self.summary.append(row)
+
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 
@@ -68,7 +70,6 @@ class WorkoData:
         # write a new summary 
         with open(SUMMARY_CSV, 'w') as fh:
             writer = csv.DictWriter(fh, fieldnames=WorkoData.SUMMARY_FIELDS)
-            writer.writeheader()
             for proj in tmp_summary:
                 writer.writerow(proj)
         

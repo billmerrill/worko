@@ -3,7 +3,8 @@ work time tracker
 
 ## todo
 
-[ ] consolidate save files
-[ ] consolidate app config
-[ ] scoreboard that rolls up work time
+[x] consolidate save files
+[x] consolidate app config
+[x] scoreboard that rolls up work time
+[ ] selecting project starts work on that project
 [ ] invoice generator
