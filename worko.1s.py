@@ -1,4 +1,17 @@
 #!/usr/bin/python3
+# <xbar.title>Worko</xbar.title>
+# <xbar.version>v0.1</xbar.version>
+# <xbar.author>Bill Merrill</xbar.author>
+# <xbar.author.github>billmerrill</xbar.author.github>
+# <xbar.desc>Provide a scoreboard for work toward project goals</xbar.desc>
+# <xbar.image>https://monkey.org/images/tmonkey.gif</xbar.image>
+# <xbar.dependencies>python</xbar.dependencies>
+# <xbar.abouturl>http://monkey.org/~bill/</xbar.abouturl>
+# <swiftbar.hideAbout>true</swiftbar.hideAbout>
+# <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
+# <swiftbar.hideLastUpdated>true</swiftbar.hideLastUpdated>
+# <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
+# <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
 
 import csv
 from collections import defaultdict
@@ -258,12 +271,16 @@ class WorkoApp:
             print(f"Duration: {duration}")
         else:
             # No active session
-            print("ⓦ | md=True")
-            print("---")
-            print("Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=start terminal=false".format(sys.argv[0]))
+            print(f"ⓦ | md=True")
+            print(f"---")
+            print(f"Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=start terminal=false")
+            print(f"---")
+            print("Top Projects")
             top_projects = self.log.get_top_projects()
             for tp in top_projects:
                 print(f"{tp['project']}: {round(tp['duration'] / 3600.0, 3)} hrs")
+        print(f"---")
+        print(f"ⓦ Worko 2025")
 
 def main():
     tracker = WorkoApp()
