@@ -226,7 +226,18 @@ class WorkoApp:
             self.end_session()
         else:
             self.start_session()
-    
+
+    @staticmethod
+    def display_duration(seconds):
+        seconds = int(seconds)
+        v = []
+        if (seconds // 3600) > 0:
+            v.append(f"{seconds//3600}h")
+        if seconds % 3600:
+            v.append(f"{(seconds % 3600) // 60}m")
+
+        return ' '.join(v)
+
    
     def display_menu(self):
         active_session = self.session.get()
@@ -235,21 +246,20 @@ class WorkoApp:
             # Working session is active
             start_time = datetime.fromisoformat(active_session['start_time'])
             duration = datetime.now() - start_time
-            duration = round(duration.total_seconds() / 3600, 3)
-            
+            duration = WorkoApp.display_duration(duration.total_seconds())
+
+            script = sys.argv[0] 
             # Menu bar display when session is active
-            print(f"㏒: **{active_session['project']}** |  md=True")
-            print("---")
-            print(sys.argv)
-            print("Add Note | refresh=True bash='{}' param1=note terminal=false".format(sys.argv[0]))
-            print("End Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=end terminal=false".format(sys.argv[0]))
-            print(f"Focus: {active_session['project']}")
-            print(f"Duration: {duration} hrs")
+            print(f"Ⓦ **{active_session['project']}** |  md=True")
+            print(f"---")
+            print(f"Add Note | refresh=True bash='{script}' param1=note terminal=false")
+            print(f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{script}' param1=end terminal=false")
+            print(f"Project: {active_session['project']}")
+            print(f"Duration: {duration}")
         else:
             # No active session
-            print("㏒ | md=True")
+            print("ⓦ | md=True")
             print("---")
-            print(sys.argv)
             print("Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=start terminal=false".format(sys.argv[0]))
             top_projects = self.log.get_top_projects()
             for tp in top_projects:
