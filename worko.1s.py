@@ -188,24 +188,27 @@ class WorkoApp:
                                              universal_newlines=True)
             # Extract the text after "text returned:"
             return result.split(':')[-1].strip()
-        except subprocess.CalledProcessError:
-            return None
+
+        # hit cancel
+        except subprocess.CalledProcessError as e:
+            return False
     
     def start_session(self, project=""):
         # Prompt for project using AppleScript
-        project = self.prompt_user("Project tag:", project)
+        project = self.prompt_user("Project tag", project)
+
+        if project is False:
+            return  # cancel
         
         if not project:
             project = "freeform"
         
-        # Create session record
         self.session.start(project)
        
     
     def end_session(self):
         # Check if there's an active session
         if not self.session.is_active():
-            self.prompt_user("No active work session to end.")
             return
         
         # Prompt for results
@@ -213,9 +216,12 @@ class WorkoApp:
         results = self.prompt_user(
                 "What did you accomplish in this work session?", 
                 f"{current_results}\n" if current_results else  "\n\n")
-        
+
+        if results is False:
+            return  # cancel
+
         if not results:
-            results = "Untracked session"
+            results = ""
         
         # Retrieve and complete the session
         session_data = self.session.end(results)
@@ -224,11 +230,12 @@ class WorkoApp:
    
     def add_note(self):
         if not self.session.is_active():
-            self.prompt_user("No active work session to note.")
             return
         
         # Prompt for results
         new_note = self.prompt_user("Add a session note.", "")
+        if new_note is False:
+            return  # cancel
         self.session.add_results(new_note)
 
     
