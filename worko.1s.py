@@ -183,13 +183,14 @@ class WorkoApp:
             # Working session is active
             start_time = datetime.fromisoformat(active_session['start_time'])
             duration = datetime.now() - start_time
+            duration = round(duration.total_seconds() / 3600, 3)
             
             # Menu bar display when session is active
             print(f"㏒: **{active_session['project']}** |  md=True")
             print("---")
             print("End Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=end terminal=false".format(sys.argv[0]))
             print(f"Focus: {active_session['project']}")
-            print(f"Duration: {duration}")
+            print(f"Duration: {duration} hrs")
         else:
             # No active session
             print("㏒ | md=True")
