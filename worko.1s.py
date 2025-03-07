@@ -24,6 +24,10 @@ class WorkoData:
         self.filesystem_setup()
         self.load_summary()
 
+    def get_top_projects(self):
+        lim = min(TOP_PROJECTS, len(self.summary))
+        return self.summary[:lim]
+
     def filesystem_setup(self):
         if not os.path.exists(WORKO_DATA_DIR):
             os.makedirs(WORKO_DATA_DIR)
@@ -190,9 +194,9 @@ class WorkoApp:
             print("㏒ | md=True")
             print("---")
             print("Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{}' param1=start terminal=false".format(sys.argv[0]))
-            print("projecta: 4hrs")
-            print("projectb: 2hrs")
-            print("projectc: 0.5hrs")
+            top_projects = self.data.get_top_projects()
+            for tp in top_projects:
+                print(f"{tp['project']}: {round(tp['duration'] / 3600.0, 3)} hrs")
 
 def main():
     tracker = WorkoApp()
