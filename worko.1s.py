@@ -227,6 +227,8 @@ class WorkoApp:
             print(
                 f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
             )
+            print("---")
+            print("Current Session")
             print(f"Project: {active_session['project']}")
             print(f"Duration: {duration}")
         else:
