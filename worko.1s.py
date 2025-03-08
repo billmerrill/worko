@@ -57,6 +57,7 @@ class WorkoLog:
         try:
             with open(SUMMARY_CSV, 'r') as fh:
                 reader = csv.DictReader(fh, fieldnames=WorkoLog.SUMMARY_FIELDS)
+                next(reader, None)  # skip header
                 for row in reader:
                     row['duration'] = int(row['duration'])
                     self.summary.append(row)
@@ -65,26 +66,26 @@ class WorkoLog:
             pass
 
     def update_summary(self):
-        print("starting update--------------------------------")
         # filter work log for the target rolling days
         project_durations = defaultdict(int)
         dt_now =  datetime.now()
         dt_limit = timedelta(days=SCOREBOARD_ROLLING_DAYS)
         with open(LOG_CSV, 'r') as fh:
             reader = csv.DictReader(fh, fieldnames=WorkoLog.LOG_FIELDS)
+            next(reader, None) # skip header
             for row in reader:
-                print("OHAHI", row)
                 dt_end = datetime.fromisoformat(row['end_time'])
                 if dt_now - dt_end < dt_limit:
                     project_durations[row['project']] += int(row['duration'])
 
-        print(project_durations)
+        # new shape!
         tmp_summary = [{'project': pk, 'duration': project_durations[pk]} for pk in project_durations]
         tmp_summary.sort(key=lambda x: x['duration'], reverse=True)
 
         # write a new summary 
         with open(SUMMARY_CSV, 'w') as fh:
             writer = csv.DictWriter(fh, fieldnames=WorkoLog.SUMMARY_FIELDS)
+            writer.writeheader()
             for proj in tmp_summary:
                 writer.writerow(proj)
         
@@ -95,7 +96,10 @@ class WorkoLog:
         file_exists = os.path.isfile(LOG_CSV)
         with open(LOG_CSV, 'a') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=WorkoLog.LOG_FIELDS)
-            
+
+            if not file_exists:
+                writer.writeheader() 
+
             writer.writerow({
                 'start_time': session['start_time'],
                 'end_time': session['end_time'],
