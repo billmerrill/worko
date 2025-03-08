@@ -197,7 +197,7 @@ class WorkoApp:
             return
 
         # Prompt for results
-        new_note = self.prompt_user("Add a session note.", "")
+        new_note = self.prompt_user("Add a session note.")
         if new_note is False:
             return  # cancel
         self.session.add_results(new_note)
@@ -217,44 +217,39 @@ class WorkoApp:
         active_session = self.session.get()
 
         if self.session.is_active():
-            # Working session is active
             start_time = datetime.fromisoformat(active_session["start_time"])
             duration = datetime.now() - start_time
             duration = WorkoApp.display_duration(duration.total_seconds())
 
-            script = sys.argv[0]
-            # Menu bar display when session is active
             print(f"Ⓦ **{active_session['project']}** |  md=True")
-            print(f"---")
-            print(f"Add Note | refresh=True bash='{script}' param1=note terminal=false")
+            print("---")
+            print(f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false")
             print(
-                f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{script}' param1=toggle terminal=false"
+                f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
             )
             print(f"Project: {active_session['project']}")
             print(f"Duration: {duration}")
         else:
-            # No active session
-            print(f"ⓦ | md=True")
-            print(f"---")
+            print("ⓦ | md=True")
+            print("---")
             print(
                 f"Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
             )
 
             top_projects = self.log.get_top_projects()
             if len(top_projects) > 0:
-                print(f"---")
+                print("---")
                 print("Top Projects")
             for tp in top_projects:
-                display_duration = WorkoApp.display_duration(tp["duration"])
                 print(
                     f"Start {tp['project']} ({WorkoApp.display_duration(tp['duration'])}) | refresh=True bash='{sys.argv[0]}' param1='{tp['project']}' terminal=false"
                 )
 
-        print(f"---")
+        print("---")
         print(
             f"Open data directory | refresh=True bash='{sys.argv[0]}' param1='opendata' terminal=false"
         )
-        print(f"ⓦ Worko 2025")
+        print("ⓦ Worko oh yeah!")
 
     def end_session(self):
         # Check if there's an active session
