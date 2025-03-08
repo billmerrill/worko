@@ -26,7 +26,7 @@ import sys
 WORKO_DATA_DIR = os.path.expanduser("~/.worko_data")
 SESSION_JSON = os.path.join(WORKO_DATA_DIR, "current_session.json")
 LOG_CSV = os.path.join(WORKO_DATA_DIR, "work_log.csv")
-SUMMARY_CSV = os.path.join(WORKO_DATA_DIR, "project_summary.csv")
+SUMMARY_CSV = os.path.join(WORKO_DATA_DIR, "projects_summary.csv")
 SCOREBOARD_ROLLING_DAYS = 7
 TOP_PROJECTS = 3
 
@@ -39,19 +39,15 @@ class WorkoLog:
         self.filesystem_setup()
         self.load_summary()
 
-    def get_top_projects(self):
-        lim = min(TOP_PROJECTS, len(self.summary))
-        return self.summary[:lim]
-
     def filesystem_setup(self):
         if not os.path.exists(WORKO_DATA_DIR):
             os.makedirs(WORKO_DATA_DIR)
         elif not os.path.isdir(WORKO_DATA_DIR):
             raise ValueError(f"Path exists but is not a directory.")
 
-    def save(self, session):
-        self.write_entry(session)
-        self.update_summary()
+    def get_top_projects(self):
+        lim = min(TOP_PROJECTS, len(self.summary))
+        return self.summary[:lim]
 
     def load_summary(self):
         self.summary = []
@@ -65,6 +61,10 @@ class WorkoLog:
 
         except (FileNotFoundError, json.JSONDecodeError):
             pass
+
+    def save(self, session):
+        self.write_entry(session)
+        self.update_summary()
 
     def update_summary(self):
         # filter work log for the target rolling days
@@ -119,32 +119,14 @@ class WorkoSession:
     def __init__(self):
         self.load()
 
-    def load(self):
-        try:
-            with open(SESSION_JSON, "r") as f:
-                self.data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            self.data = {"active_session": None}
-
-    def save(self):
-        with open(SESSION_JSON, "w") as f:
-            json.dump(self.data, f)
-
-    def get(self):
-        return self.data["active_session"]
-
-    def start(self, project):
-        self.data = {
-            "active_session": {
-                "start_time": datetime.now().isoformat(),
-                "project": project,
-                "end_time": None,
-                "duration": None,
-                "results": None,
-            }
-        }
-
-        self.save()
+    def add_results(self, new_result):
+        if self.is_active():
+            self.data["active_session"]["results"] = (
+                f"{self.data['active_session']['results']}\n{new_result}"
+                if self.data["active_session"]["results"]
+                else new_result
+            )
+            self.save()
 
     def end(self, results):
         s = self.data["active_session"]
@@ -165,80 +147,50 @@ class WorkoSession:
         self.save()
         return final_session
 
-    def is_active(self):
-        return self.data["active_session"] is not None
+    def get(self):
+        return self.data["active_session"]
 
     def get_results(self):
         if self.is_active():
             return self.data["active_session"]["results"]
+
+    def is_active(self):
+        return self.data["active_session"] is not None
+
+    def load(self):
+        try:
+            with open(SESSION_JSON, "r") as f:
+                self.data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.data = {"active_session": None}
+
+    def save(self):
+        with open(SESSION_JSON, "w") as f:
+            json.dump(self.data, f)
 
     def set_results(self, note):
         if self.is_active():
             self.data["active_session"]["results"] = note
             self.save()
 
-    def add_results(self, new_result):
-        if self.is_active():
-            self.data["active_session"]["results"] = (
-                f"{self.data['active_session']['results']}\n{new_result}"
-                if self.data["active_session"]["results"]
-                else new_result
-            )
-            self.save()
+    def start(self, project):
+        self.data = {
+            "active_session": {
+                "start_time": datetime.now().isoformat(),
+                "project": project,
+                "end_time": None,
+                "duration": None,
+                "results": None,
+            }
+        }
+
+        self.save()
 
 
 class WorkoApp:
     def __init__(self):
         self.session = WorkoSession()
         self.log = WorkoLog()
-
-    def prompt_user(self, message, answer=""):
-        """Use AppleScript to show a dialog and return user input"""
-        script = f'display dialog "{message}" default answer "{answer}"'
-        try:
-            result = subprocess.check_output(
-                ["osascript", "-e", script], universal_newlines=True
-            )
-            # Extract the text after "text returned:"
-            return result.split(":")[-1].strip()
-
-        # hit cancel
-        except subprocess.CalledProcessError as e:
-            return False
-
-    def start_session(self, project=""):
-        # Prompt for project using AppleScript
-        project = self.prompt_user("Project tag", project)
-
-        if project is False:
-            return  # cancel
-
-        if not project:
-            project = "freeform"
-
-        self.session.start(project)
-
-    def end_session(self):
-        # Check if there's an active session
-        if not self.session.is_active():
-            return
-
-        # Prompt for results
-        current_results = self.session.get_results()
-        results = self.prompt_user(
-            "What did you accomplish in this work session?",
-            f"{current_results}\n" if current_results else "\n\n",
-        )
-
-        if results is False:
-            return  # cancel
-
-        if not results:
-            results = ""
-
-        # Retrieve and complete the session
-        session_data = self.session.end(results)
-        self.log.save(session_data)
 
     def add_note(self):
         if not self.session.is_active():
@@ -249,12 +201,6 @@ class WorkoApp:
         if new_note is False:
             return  # cancel
         self.session.add_results(new_note)
-
-    def toggle_session(self):
-        if self.session.is_active():
-            self.end_session()
-        else:
-            self.start_session()
 
     @staticmethod
     def display_duration(seconds):
@@ -310,6 +256,59 @@ class WorkoApp:
         )
         print(f"ⓦ Worko 2025")
 
+    def end_session(self):
+        # Check if there's an active session
+        if not self.session.is_active():
+            return
+
+        # Prompt for results
+        current_results = self.session.get_results()
+        results = self.prompt_user(
+            "What did you accomplish in this work session?",
+            f"{current_results}\n" if current_results else "\n\n",
+        )
+
+        if results is False:
+            return  # cancel
+
+        if not results:
+            results = ""
+
+        # Retrieve and complete the session
+        session_data = self.session.end(results)
+        self.log.save(session_data)
+
+    def prompt_user(self, message, answer=""):
+        """Use AppleScript to show a dialog and return user input"""
+        script = f'display dialog "{message}" default answer "{answer}"'
+        try:
+            result = subprocess.check_output(
+                ["osascript", "-e", script], universal_newlines=True
+            )
+            # Extract the text after "text returned:"
+            return result.split(":")[-1].strip()
+
+        # hit cancel
+        except subprocess.CalledProcessError as e:
+            return False
+
+    def start_session(self, project=""):
+        # Prompt for project using AppleScript
+        project = self.prompt_user("Project tag", project)
+
+        if project is False:
+            return  # cancel
+
+        if not project:
+            project = "freeform"
+
+        self.session.start(project)
+
+    def toggle_session(self):
+        if self.session.is_active():
+            self.end_session()
+        else:
+            self.start_session()
 
 def main():
     tracker = WorkoApp()
