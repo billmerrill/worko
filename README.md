@@ -1,4 +1,4 @@
-# Worko
+# ⓦ Worko
 
 ⓦ Worko is a [Swiftbar](https://swiftbar.app) plugin for tracking time spent on projects.  I've written this tool to duplicate a workflow I used with a long-lost [Freshbooks](https://freshbooks.com) Dashboard widget.  Having easy stop/start tracking with annotations allows me to provide granular reporting for detail-focused clients (in this case I'm the client).  Session data is stored in CSV files for easy report generation. 
 
@@ -21,7 +21,7 @@ will show your top three projects in the last 7 days and how long you've spent i
 
 You may adjust the number of projects shown in the scoreboard and the rolling window for work totals on projects by editing the plugin file.
 
-Bonsu: Select a project in the menu as a shortcut to starting a new working session.
+Bonus: Select a project in the menu as a shortcut to starting a new working session.
 
 ## Installing ⓦ Worko:
 
