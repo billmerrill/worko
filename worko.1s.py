@@ -128,6 +128,10 @@ class WorkoSession:
             )
             self.save()
 
+    def cancel(self):
+        self.data["active_session"] = None
+        self.save()
+
     def end(self, results):
         s = self.data["active_session"]
         start_time = datetime.fromisoformat(s["start_time"])
@@ -223,7 +227,9 @@ class WorkoApp:
 
             print(f"Ⓦ **{active_session['project']}** |  md=True")
             print("---")
-            print(f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false")
+            print(
+                f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false"
+            )
             print(
                 f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
             )
@@ -231,6 +237,11 @@ class WorkoApp:
             print("Current Session")
             print(f"Project: {active_session['project']}")
             print(f"Duration: {duration}")
+            print("---")
+            print(
+                f"Cancel Session | refresh=True bash='{sys.argv[0]}' param1=cancel terminal=false"
+            )
+
         else:
             print("ⓦ | md=True")
             print("---")
@@ -275,6 +286,12 @@ class WorkoApp:
         session_data = self.session.end(results)
         self.log.save(session_data)
 
+    def cancel_session(self):
+        if not self.session.is_active():
+            return
+
+        self.session.cancel()
+
     def prompt_user(self, message, answer=""):
         """Use AppleScript to show a dialog and return user input"""
         script = f'display dialog "{message}" default answer "{answer}"'
@@ -307,6 +324,7 @@ class WorkoApp:
         else:
             self.start_session()
 
+
 def main():
     tracker = WorkoApp()
     if len(sys.argv) > 1:
@@ -314,6 +332,8 @@ def main():
             tracker.add_note()
         elif sys.argv[1] == "toggle":
             tracker.toggle_session()
+        elif sys.argv[1] == "cancel":
+            tracker.cancel_session()
         elif sys.argv[1] == "opendata":
             subprocess.run(["/usr/bin/open", WORKO_DATA_DIR])
         else:
