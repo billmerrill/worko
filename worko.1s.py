@@ -1,18 +1,22 @@
-#!/usr/bin/python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+# ]
+# ///
 # <xbar.title>Worko</xbar.title>
 # <xbar.version>v0.1</xbar.version>
 # <xbar.author>Bill Merrill</xbar.author>
 # <xbar.author.github>billmerrill</xbar.author.github>
-# <xbar.desc>Provide a scoreboard for work toward project goals</xbar.desc>
+# <xbar.desc>Visualize time torward work goals.</xbar.desc>
 # <xbar.image>https://monkey.org/images/tmonkey.gif</xbar.image>
-# <xbar.dependencies>python</xbar.dependencies>
+# <xbar.dependencies>uv</xbar.dependencies>
 # <xbar.abouturl>http://monkey.org/~bill/</xbar.abouturl>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 # <swiftbar.hideLastUpdated>true</swiftbar.hideLastUpdated>
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 # <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
-
 import csv
 from collections import defaultdict
 from copy import copy
@@ -134,13 +138,10 @@ class WorkoSession:
 
     def end(self, results):
         s = self.data["active_session"]
-        start_time = datetime.fromisoformat(s["start_time"])
         end_time = datetime.now()
-        duration = end_time - start_time
-
         # Update session details
         s["end_time"] = end_time.isoformat()
-        s["duration"] = str(round(duration.total_seconds()))
+        s["duration"] = self.get_duration(end_time)
         s["results"] = results
 
         self.save()
@@ -153,6 +154,13 @@ class WorkoSession:
 
     def get(self):
         return self.data["active_session"]
+
+    def get_duration(self, end_time=None):
+        if end_time is None:
+            end_time = datetime.now()
+        start_time = datetime.fromisoformat(self.data["active_session"]["start_time"])
+        paused_total = self.data["active_session"].get("paused_total", 0)
+        return round((end_time - start_time).total_seconds() - paused_total)
 
     def get_results(self):
         if self.is_active():
@@ -175,7 +183,7 @@ class WorkoSession:
         if self.is_paused():
             return
 
-        self.data["active_session"]["pause_start"] = datetime.now.isoformat()
+        self.data["active_session"]["pause_start"] = datetime.now().isoformat()
         self.save()
 
     def save(self):
@@ -204,10 +212,10 @@ class WorkoSession:
         if not self.is_paused():
             return
 
-        pause_total = int(self.data['active_session'].get('pause_total', 0))
+        paused_total = int(self.data['active_session'].get('paused_total', 0))
         pause_duration = datetime.now() - datetime.fromisoformat(self.data['active_session']['pause_start'])
-        pause_total += round(pause_duration.total_seconds())
-        self.data['active_session']['paused_total'] = pause_total
+        paused_total += round(pause_duration.total_seconds())
+        self.data['active_session']['paused_total'] = paused_total
         del(self.data['active_session']['pause_start'])
         self.save()
 
@@ -235,27 +243,34 @@ class WorkoApp:
 
     @staticmethod
     def display_duration(seconds):
+        format = 'b'
         seconds = int(seconds)
         v = []
-        if (seconds // 3600) > 0:
-            v.append(f"{seconds//3600}h")
-        if seconds % 3600:
-            v.append(f"{(seconds % 3600) // 60}m")
+        if format == 'a':
+            if (seconds // 3600) > 0:
+                v.append(f"{seconds//3600}h")
+            if seconds % 3600 > 0:
+                v.append(f"{(seconds % 3600) // 60}m")
+            return " ".join(v)
+        else:
+            v.append(f"{seconds//3600:02d}")
+            v.append(f":{(seconds % 3600) // 60:02d}")
+            return "".join(v)
 
-        return " ".join(v)
+
 
     def display_menu(self):
         active_session = self.session.get()
 
         if self.session.is_active():
-            start_time = datetime.fromisoformat(active_session["start_time"])
-            duration = datetime.now() - start_time
-            duration = WorkoApp.display_duration(duration.total_seconds())
+            duration = WorkoApp.display_duration(self.session.get_duration())
 
-            print(f"Ⓦ **{active_session['project']} {duration}** |  md=True")
-            # print("---")
-            # print(f"⏱️ **{duration}** | md=True refresh=False bash='{sys.argv[0]}' param1=noop terminal=False")
-            print("---")
+            if self.session.is_paused():
+                print(f"Ⓦ **{active_session['project']} ⏸️** |  md=True")
+                print("---")
+            else:
+                print(f"Ⓦ **{active_session['project']}** {duration} |  md=True")
+                print("---")
             print(f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false"
             )
             print(
@@ -263,7 +278,12 @@ class WorkoApp:
             )
             print("---")
             print("Current Session")
-            print(f"Project: {active_session['project']}")
+            print(f"{active_session['project']} ({duration})")
+            print("---")
+            if not self.session.is_paused():
+                print(f"Pause Session | refresh=True bash='{sys.argv[0]}' param1=pause terminal=false")
+            else:
+                print(f"Resume Session | refresh=True bash='{sys.argv[0]}' param1=unpause terminal=false")
             print("---")
             print(
                 f"Cancel Session | refresh=True bash='{sys.argv[0]}' param1=cancel terminal=false"
@@ -314,6 +334,7 @@ class WorkoApp:
         self.log.save(session_data)
 
     def pause_session(self):
+
         if not self.session.is_active():
             return
 
@@ -351,25 +372,34 @@ class WorkoApp:
         else:
             self.start_session()
 
+    def unpause_session(self):
+        if not self.session.is_paused():
+            return
+
+        self.session.unpause()
+
 
 def main():
     tracker = WorkoApp()
     if len(sys.argv) > 1:
-        if sys.argv[1] == "noop":
-            pass
-        elif sys.argv[1] == "note":
-            tracker.add_note()
-        elif sys.argv[1] == "toggle":
-            tracker.toggle_session()
-        elif sys.argv[1] == "cancel":
-            tracker.cancel_session()
-        elif sys.argv[1] == "opendata":
-            subprocess.run(["/usr/bin/open", WORKO_DATA_DIR])
-        else:
-            tracker.start_session(sys.argv[1])
-    else:
-        tracker.display_menu()
-
+        match sys.argv[1]:
+            case "noop":
+                pass
+            case "toggle":
+                tracker.toggle_session()
+            case "cancel":
+                tracker.cancel_session()
+            case "pause":
+                tracker.pause_session()
+            case "unpause":
+                tracker.unpause_session()
+            case "opendata":
+                subprocess.run(["/usr/bin/open", WORKO_DATA_DIR])
+            case _:
+                tracker.start_session(sys.argv[1])
+        
+    tracker.display_menu()
+        
 
 if __name__ == "__main__":
     main()
