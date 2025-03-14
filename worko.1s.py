@@ -225,10 +225,11 @@ class WorkoApp:
             duration = datetime.now() - start_time
             duration = WorkoApp.display_duration(duration.total_seconds())
 
-            print(f"Ⓦ **{active_session['project']}** |  md=True")
+            print(f"Ⓦ **{active_session['project']} {duration}** |  md=True")
+            # print("---")
+            # print(f"⏱️ **{duration}** | md=True refresh=False bash='{sys.argv[0]}' param1=noop terminal=False")
             print("---")
-            print(
-                f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false"
+            print(f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false"
             )
             print(
                 f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
@@ -236,7 +237,6 @@ class WorkoApp:
             print("---")
             print("Current Session")
             print(f"Project: {active_session['project']}")
-            print(f"Duration: {duration}")
             print("---")
             print(
                 f"Cancel Session | refresh=True bash='{sys.argv[0]}' param1=cancel terminal=false"
@@ -328,7 +328,9 @@ class WorkoApp:
 def main():
     tracker = WorkoApp()
     if len(sys.argv) > 1:
-        if sys.argv[1] == "note":
+        if sys.argv[1] == "noop":
+            pass
+        elif sys.argv[1] == "note":
             tracker.add_note()
         elif sys.argv[1] == "toggle":
             tracker.toggle_session()
