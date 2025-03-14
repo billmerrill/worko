@@ -161,12 +161,22 @@ class WorkoSession:
     def is_active(self):
         return self.data["active_session"] is not None
 
+    def is_paused(self):    
+        return 'pause_start' in self.data["active_session"]
+
     def load(self):
         try:
             with open(SESSION_JSON, "r") as f:
                 self.data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             self.data = {"active_session": None}
+
+    def pause(self):
+        if self.is_paused():
+            return
+
+        self.data["active_session"]["pause_start"] = datetime.now.isoformat()
+        self.save()
 
     def save(self):
         with open(SESSION_JSON, "w") as f:
@@ -190,6 +200,17 @@ class WorkoSession:
 
         self.save()
 
+    def unpause(self):
+        if not self.is_paused():
+            return
+
+        pause_total = int(self.data['active_session'].get('pause_total', 0))
+        pause_duration = datetime.now() - datetime.fromisoformat(self.data['active_session']['pause_start'])
+        pause_total += round(pause_duration.total_seconds())
+        self.data['active_session']['paused_total'] = pause_total
+        del(self.data['active_session']['pause_start'])
+        self.save()
+
 
 class WorkoApp:
     def __init__(self):
@@ -205,6 +226,12 @@ class WorkoApp:
         if new_note is False:
             return  # cancel
         self.session.add_results(new_note)
+
+    def cancel_session(self):
+        if not self.session.is_active():
+            return
+
+        self.session.cancel()
 
     @staticmethod
     def display_duration(seconds):
@@ -286,11 +313,11 @@ class WorkoApp:
         session_data = self.session.end(results)
         self.log.save(session_data)
 
-    def cancel_session(self):
+    def pause_session(self):
         if not self.session.is_active():
             return
 
-        self.session.cancel()
+        self.session.pause()
 
     def prompt_user(self, message, answer=""):
         """Use AppleScript to show a dialog and return user input"""
