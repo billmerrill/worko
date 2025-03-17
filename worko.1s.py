@@ -401,6 +401,8 @@ def main():
                 tracker.toggle_session()
             case "wo_cancel":
                 tracker.cancel_session()
+            case "wo_note":
+                tracker.add_note()
             case "wo_pause":
                 tracker.pause_session()
             case "wo_unpause":
