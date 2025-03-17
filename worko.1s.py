@@ -138,7 +138,12 @@ class WorkoSession:
 
     def end(self, results):
         s = self.data["active_session"]
-        end_time = datetime.now()
+        if self.is_paused():
+            end_time = datetime.fromisoformat(s["pause_start"])
+            del(s["pause_start"])
+        else:
+            end_time = datetime.now()
+
         # Update session details
         s["end_time"] = end_time.isoformat()
         s["duration"] = self.get_duration(end_time)
@@ -157,7 +162,11 @@ class WorkoSession:
 
     def get_duration(self, end_time=None):
         if end_time is None:
-            end_time = datetime.now()
+            if self.is_paused():
+                end_time = datetime.fromisoformat(self.data['active_session']["pause_start"])
+            else:
+                end_time = datetime.now()
+
         start_time = datetime.fromisoformat(self.data["active_session"]["start_time"])
         paused_total = self.data["active_session"].get("paused_total", 0)
         return round((end_time - start_time).total_seconds() - paused_total)
@@ -189,6 +198,17 @@ class WorkoSession:
     def save(self):
         with open(SESSION_JSON, "w") as f:
             json.dump(self.data, f)
+
+    def set_duration(self, new_duration):
+        """
+        Override the 'paused_total' to include duration edit deltas
+        'paused_total' is subtracted from teh timespan.
+        """
+        curr_duration = self.get_duration()
+        paused_total = int(self.data['active_session'].get('paused_total', 0))
+        paused_total -= new_duration - curr_duration
+        self.data['active_session']['paused_total'] = paused_total
+        self.save()
 
     def set_results(self, note):
         if self.is_active():
@@ -235,6 +255,15 @@ class WorkoApp:
             return  # cancel
         self.session.add_results(new_note)
 
+    def adjust_time(self):
+        result = WorkoApp.query_user("Adjust Session Duration (HH:MM)", WorkoApp.display_duration(self.session.get_duration()))
+        if result is not False:
+            seconds = WorkoApp.get_seconds_from_display(result)
+            if isinstance(seconds, int):
+                self.session.set_duration(seconds)
+            else:
+                WorkoApp.show_message(f"There was an error completing your request.\n\nPlease use the format HH:MM.\n\nThe error was: {seconds}")
+
     def cancel_session(self):
         if not self.session.is_active():
             return
@@ -257,8 +286,6 @@ class WorkoApp:
             v.append(f":{(seconds % 3600) // 60:02d}")
             return "".join(v)
 
-
-
     def display_menu(self):
         active_session = self.session.get()
 
@@ -279,16 +306,22 @@ class WorkoApp:
             print("---")
             print("Current Session")
             print(f"{active_session['project']} ({duration})")
+            
             print("---")
             if not self.session.is_paused():
                 print(f"Pause Session | refresh=True bash='{sys.argv[0]}' param1=wo_pause terminal=false")
             else:
                 print(f"Resume Session | refresh=True bash='{sys.argv[0]}' param1=wo_unpause terminal=false")
+           
+            print("---")
+            print(
+                f"Adjust Duration | refresh=True bash='{sys.argv[0]}' param1=wo_adjusttime terminal=false"
+            )
+          
             print("---")
             print(
                 f"Cancel Session | refresh=True bash='{sys.argv[0]}' param1=wo_cancel terminal=false"
             )
-
         else:
             print("ⓦ | md=True")
             print("---")
@@ -333,6 +366,14 @@ class WorkoApp:
         session_data = self.session.end(results)
         self.log.save(session_data)
 
+    @staticmethod
+    def get_seconds_from_display(duration_string):
+        try:
+            h,m = duration_string.split(':')
+            return int(h)*3600 + int(m)*60
+        except ValueError as e:
+            return str(e)
+
     def pause_session(self):
 
         if not self.session.is_active():
@@ -345,6 +386,8 @@ class WorkoApp:
         """
         Returns the user response, or False on cancel.
         """
+        text_seed = text_seed.replace('\\', '\\\\').replace('"', '\\"')
+
         # Create the AppleScript command
         applescript = f'''
         tell application "System Events"
@@ -364,7 +407,23 @@ class WorkoApp:
         else:
             # User clicked Cancel
             return False
+
+    @staticmethod
+    def show_message(message, title="Information"):
+        # Create the AppleScript command
+        applescript = f'''
+        tell application "System Events"
+            display dialog "{message}" with title "{title}" buttons {{"OK"}} default button "OK"
+        end tell
+        '''
         
+        # Execute the AppleScript command using osascript
+        result = subprocess.run(['osascript', '-e', applescript], 
+                            capture_output=True, 
+                            text=True)
+        
+        # Check if the command exited successfully
+        return result.returncode == 0        
 
     def start_session(self, project=""):
         # Prompt for project using AppleScript
@@ -407,6 +466,8 @@ def main():
                 tracker.pause_session()
             case "wo_unpause":
                 tracker.unpause_session()
+            case "wo_adjusttime":
+                tracker.adjust_time()
             case "wo_opendata":
                 subprocess.run(["/usr/bin/open", WORKO_DATA_DIR])
             case "wo_refreshsummary":
