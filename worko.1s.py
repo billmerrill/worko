@@ -32,7 +32,7 @@ SESSION_JSON = os.path.join(WORKO_DATA_DIR, "current_session.json")
 LOG_CSV = os.path.join(WORKO_DATA_DIR, "work_log.csv")
 SUMMARY_CSV = os.path.join(WORKO_DATA_DIR, "projects_summary.csv")
 SCOREBOARD_ROLLING_DAYS = 7
-TOP_PROJECTS = 3
+TOP_PROJECTS = 10 
 
 
 class WorkoLog:
@@ -271,29 +271,29 @@ class WorkoApp:
             else:
                 print(f"Ⓦ **{active_session['project']}** {duration} |  md=True")
                 print("---")
-            print(f"Add Note | refresh=True bash='{sys.argv[0]}' param1=note terminal=false"
+            print(f"Add Note | refresh=True bash='{sys.argv[0]}' param1=wo_note terminal=false"
             )
             print(
-                f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
+                f"End Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=wo_toggle terminal=false"
             )
             print("---")
             print("Current Session")
             print(f"{active_session['project']} ({duration})")
             print("---")
             if not self.session.is_paused():
-                print(f"Pause Session | refresh=True bash='{sys.argv[0]}' param1=pause terminal=false")
+                print(f"Pause Session | refresh=True bash='{sys.argv[0]}' param1=wo_pause terminal=false")
             else:
-                print(f"Resume Session | refresh=True bash='{sys.argv[0]}' param1=unpause terminal=false")
+                print(f"Resume Session | refresh=True bash='{sys.argv[0]}' param1=wo_unpause terminal=false")
             print("---")
             print(
-                f"Cancel Session | refresh=True bash='{sys.argv[0]}' param1=cancel terminal=false"
+                f"Cancel Session | refresh=True bash='{sys.argv[0]}' param1=wo_cancel terminal=false"
             )
 
         else:
             print("ⓦ | md=True")
             print("---")
             print(
-                f"Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=toggle terminal=false"
+                f"Start New Session | shortcut=CMD+CTRL+L refresh=True bash='{sys.argv[0]}' param1=wo_toggle terminal=false"
             )
 
             top_projects = self.log.get_top_projects()
@@ -307,7 +307,7 @@ class WorkoApp:
 
         print("---")
         print(
-            f"Open data directory | refresh=True bash='{sys.argv[0]}' param1='opendata' terminal=false"
+            f"Open data directory | refresh=True bash='{sys.argv[0]}' param1='wo_opendata' terminal=false"
         )
         print("ⓦ Worko oh yeah!")
 
@@ -348,7 +348,7 @@ class WorkoApp:
                 ["osascript", "-e", script], universal_newlines=True
             )
             # Extract the text after "text returned:"
-            return result.split(":")[-1].strip()
+            return result.split("text returned:")[-1].strip()
 
         # hit cancel
         except subprocess.CalledProcessError as e:
@@ -385,16 +385,19 @@ def main():
         match sys.argv[1]:
             case "noop":
                 pass
-            case "toggle":
+            case "wo_toggle":
                 tracker.toggle_session()
-            case "cancel":
+            case "wo_cancel":
                 tracker.cancel_session()
-            case "pause":
+            case "wo_pause":
                 tracker.pause_session()
-            case "unpause":
+            case "wo_unpause":
                 tracker.unpause_session()
-            case "opendata":
+            case "wo_opendata":
                 subprocess.run(["/usr/bin/open", WORKO_DATA_DIR])
+            case "wo_refreshsummary":
+                log = WorkoLog()
+                log.update_summary()
             case _:
                 tracker.start_session(sys.argv[1])
         
