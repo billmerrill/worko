@@ -230,7 +230,7 @@ class WorkoApp:
             return
 
         # Prompt for results
-        new_note = self.prompt_user("Add a session note.")
+        new_note = self.query_user("Add a session note.")
         if new_note is False:
             return  # cancel
         self.session.add_results(new_note)
@@ -318,7 +318,7 @@ class WorkoApp:
 
         # Prompt for results
         current_results = self.session.get_results()
-        results = self.prompt_user(
+        results = self.query_user(
             "What did you accomplish in this work session?",
             f"{current_results}\n" if current_results else "\n\n",
         )
@@ -340,23 +340,35 @@ class WorkoApp:
 
         self.session.pause()
 
-    def prompt_user(self, message, answer=""):
-        """Use AppleScript to show a dialog and return user input"""
-        script = f'display dialog "{message}" default answer "{answer}"'
-        try:
-            result = subprocess.check_output(
-                ["osascript", "-e", script], universal_newlines=True
-            )
-            # Extract the text after "text returned:"
-            return result.split("text returned:")[-1].strip()
+    @staticmethod
+    def query_user(question, text_seed=""):
+        """
+        Returns the user response, or False on cancel.
+        """
+        # Create the AppleScript command
+        applescript = f'''
+        tell application "System Events"
+            display dialog "{question}" default answer "{text_seed}" buttons {{"Cancel", "OK"}} default button "OK"
+            set user_response to text returned of the result
+            return user_response
+        end tell
+        '''
 
-        # hit cancel
-        except subprocess.CalledProcessError as e:
+        result = subprocess.run(['osascript', '-e', applescript], 
+                            capture_output=True, 
+                            text=True)
+            
+        if result.returncode == 0:
+            # User clicked OK
+            return result.stdout.strip()
+        else:
+            # User clicked Cancel
             return False
+        
 
     def start_session(self, project=""):
         # Prompt for project using AppleScript
-        project = self.prompt_user("Project tag", project)
+        project = self.query_user("Project tag", project)
 
         if project is False:
             return  # cancel
